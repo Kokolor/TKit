@@ -29,17 +29,26 @@ void SaveNodesToAssembler()
 {
     std::ofstream outFile("kernel.asm");
 
-    for (const auto &node : nodes)
+    for (int i = 0; i < links.size(); i += 2)
     {
-        if (node.type == "kernel_start")
+        for (const auto &node : nodes)
         {
-            outFile << "org 0x7C00\n";
-            outFile << "bits 16\n";
-        }
-        else if (node.type == "kernel_end")
-        {
-            outFile << "times 510-($-$$) db 0\n";
-            outFile << "dw 0AA55h\n";
+            if (node.id == links[i])
+            {
+                if (node.type == "kernel_start")
+                {
+                    outFile << "org 0x7C00\n";
+                    outFile << "bits 16\n";
+                }
+            }
+            if (node.id == links[i + 1])
+            {
+                if (node.type == "kernel_end")
+                {
+                    outFile << "times 510-($-$$) db 0\n";
+                    outFile << "dw 0AA55h\n";
+                }
+            }
         }
     }
 

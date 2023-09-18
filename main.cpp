@@ -8,6 +8,8 @@
 #include <vector>
 #include <fstream>
 #include <iostream>
+#include <set>
+#include <functional>
 #define GL_SILENCE_DEPRECATION
 
 #if defined(IMGUI_IMPL_OPENGL_ES2)
@@ -20,37 +22,113 @@ struct Node
 {
     int id;
     std::string type;
+    char letter[2];
 };
 
 std::vector<Node> nodes;
 std::vector<int> links;
 
-void SaveNodesToAssembler()
+bool KernelPathIsValid()
 {
-    std::ofstream outFile("kernel.asm");
+    auto startNodeIt = std::find_if(nodes.begin(), nodes.end(), [](const Node &node)
+                                    { return node.type == "kernel_start"; });
 
-    for (int i = 0; i < links.size(); i += 2)
+    if (startNodeIt == nodes.end())
     {
-        for (const auto &node : nodes)
+        std::cout << "Pas trouvé de kernel_start\n";
+        return false;
+    }
+
+    std::set<int> visitedNodes;
+
+    std::function<bool(int)> checkPath = [&](int currentNodeId)
+    {
+        visitedNodes.insert(currentNodeId);
+
+        for (int i = 0; i < links.size(); i += 2)
         {
-            if (node.id == links[i])
+            if (links[i] == currentNodeId && visitedNodes.find(links[i + 1]) == visitedNodes.end())
             {
-                if (node.type == "kernel_start")
+                auto nodeIt = std::find_if(nodes.begin(), nodes.end(), [&](const Node &node)
+                                           { return node.id == links[i + 1]; });
+
+                if (nodeIt != nodes.end())
                 {
-                    outFile << "org 0x7C00\n";
-                    outFile << "bits 16\n";
-                }
-            }
-            if (node.id == links[i + 1])
-            {
-                if (node.type == "kernel_end")
-                {
-                    outFile << "times 510-($-$$) db 0\n";
-                    outFile << "dw 0AA55h\n";
+                    if (nodeIt->type == "kernel_end")
+                    {
+                        return true;
+                    }
+
+                    if (checkPath(nodeIt->id))
+                    {
+                        return true;
+                    }
                 }
             }
         }
+
+        return false;
+    };
+
+    return checkPath(startNodeIt->id);
+}
+
+void SaveNodesToAssembler()
+{
+    if (!KernelPathIsValid())
+    {
+        std::cout << "Le chemin du kernel n'est pas valide\n";
+        return;
     }
+
+    std::ofstream outFile("kernel.asm");
+
+    auto startNodeIt = std::find_if(nodes.begin(), nodes.end(), [](const Node &node)
+                                    { return node.type == "kernel_start"; });
+
+    if (startNodeIt == nodes.end())
+    {
+        std::cout << "Pas trouvé de kernel_start\n";
+        return;
+    }
+
+    outFile << "org 0x7C00\n";
+    outFile << "bits 16\n";
+
+    std::set<int> visitedNodes;
+
+    std::function<void(int)> writeInstructions = [&](int currentNodeId)
+    {
+        visitedNodes.insert(currentNodeId);
+
+        for (int i = 0; i < links.size(); i += 2)
+        {
+            if (links[i] == currentNodeId && visitedNodes.find(links[i + 1]) == visitedNodes.end())
+            {
+                auto nodeIt = std::find_if(nodes.begin(), nodes.end(), [&](const Node &node)
+                                           { return node.id == links[i + 1]; });
+
+                if (nodeIt != nodes.end())
+                {
+                    if (nodeIt->type == "print_char")
+                    {
+                        outFile << "mov ah, 0x0e\n";
+                        outFile << "mov al, '" << nodeIt->letter[0] << "'\n";
+                        outFile << "int 0x10\n";
+                    }
+                    else if (nodeIt->type == "kernel_end")
+                    {
+                        outFile << "times 510-($-$$) db 0\n";
+                        outFile << "dw 0AA55h\n";
+                    }
+
+                    writeInstructions(nodeIt->id);
+                }
+            }
+        }
+    };
+
+    writeInstructions(startNodeIt->id);
 
     outFile.close();
     std::cout << "Nodes enregistrés dans 'kernel.asm'\n";
@@ -118,10 +196,20 @@ int main()
             {
                 nodes.push_back({static_cast<int>(nodes.size()), "kernel_end"});
             }
+            if (ImGui::MenuItem("Ajouter print_char"))
+            {
+                Node new_node;
+                new_node.id = static_cast<int>(nodes.size());
+                new_node.type = "print_char";
+                new_node.letter[0] = 'A';
+                new_node.letter[1] = '\0';
+                nodes.push_back(new_node);
+            }
+
             ImGui::EndPopup();
         }
 
-        for (auto node_it = nodes.begin(); node_it != nodes.end(); /* pas d'incrément ici */)
+        for (auto node_it = nodes.begin(); node_it != nodes.end();)
         {
             ImNodes::BeginNode(node_it->id);
 
@@ -140,6 +228,18 @@ int main()
                 ImNodes::BeginInputAttribute(node_it->id);
                 ImGui::Text("End");
                 ImNodes::EndInputAttribute();
+            }
+            else if (node_it->type == "print_char")
+            {
+                ImNodes::BeginInputAttribute(node_it->id);
+                ImGui::Text("Input");
+                ImNodes::EndInputAttribute();
+
+                ImNodes::BeginOutputAttribute(node_it->id + 10000);
+                ImGui::Text("Output");
+                ImNodes::EndOutputAttribute();
+
+                ImGui::InputText("letter", node_it->letter, 2);
             }
 
             if (ImGui::BeginPopupContextItem("NodeContext"))

@@ -3,7 +3,8 @@
 #include <imnodes.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -188,8 +189,21 @@ int main()
                 }
                 ImGui::EndMenu();
             }
+            if (ImGui::BeginMenu("Run"))
+            {
+                if (ImGui::MenuItem("Run"))
+                {
+                    system("nasm -f bin kernel.asm -o kernel.bin && qemu-system-x86_64 -m 256M -fda kernel.bin");
+                }
+                ImGui::EndMenu();
+            }
             ImGui::EndMainMenuBar();
         }
+
+        ImVec2 winSize = ImGui::GetIO().DisplaySize;
+        float menuHeight = ImGui::GetFrameHeightWithSpacing();
+        ImGui::SetNextWindowPos(ImVec2(0, menuHeight));
+        ImGui::SetNextWindowSize(ImVec2(winSize.x, winSize.y - menuHeight));
 
         ImNodes::BeginNodeEditor();
 
@@ -251,7 +265,7 @@ int main()
 
             if (ImGui::BeginPopupContextItem("NodeContext"))
             {
-                if (ImGui::MenuItem("Deleter"))
+                if (ImGui::MenuItem("Delete"))
                 {
                     node_it = nodes.erase(node_it);
                     continue;

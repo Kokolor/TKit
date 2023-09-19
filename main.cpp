@@ -35,7 +35,7 @@ bool KernelPathIsValid()
 
     if (startNodeIt == nodes.end())
     {
-        std::cout << "Pas trouvé de kernel_start\n";
+        std::cout << "kernel_start not found!\n";
         return false;
     }
 
@@ -59,7 +59,14 @@ bool KernelPathIsValid()
                         return true;
                     }
 
-                    if (checkPath(nodeIt->id))
+                    if (nodeIt->type == "print_char")
+                    {
+                        if (checkPath(nodeIt->id + 10000))
+                        {
+                            return true;
+                        }
+                    }
+                    else if (checkPath(nodeIt->id))
                     {
                         return true;
                     }
@@ -77,20 +84,11 @@ void SaveNodesToAssembler()
 {
     if (!KernelPathIsValid())
     {
-        std::cout << "Le chemin du kernel n'est pas valide\n";
+        std::cout << "Code is not valid!\n";
         return;
     }
 
     std::ofstream outFile("kernel.asm");
-
-    auto startNodeIt = std::find_if(nodes.begin(), nodes.end(), [](const Node &node)
-                                    { return node.type == "kernel_start"; });
-
-    if (startNodeIt == nodes.end())
-    {
-        std::cout << "Pas trouvé de kernel_start\n";
-        return;
-    }
 
     outFile << "org 0x7C00\n";
     outFile << "bits 16\n";
@@ -115,23 +113,32 @@ void SaveNodesToAssembler()
                         outFile << "mov ah, 0x0e\n";
                         outFile << "mov al, '" << nodeIt->letter[0] << "'\n";
                         outFile << "int 0x10\n";
+
+                        writeInstructions(nodeIt->id + 10000);
                     }
                     else if (nodeIt->type == "kernel_end")
                     {
                         outFile << "times 510-($-$$) db 0\n";
                         outFile << "dw 0AA55h\n";
                     }
-
-                    writeInstructions(nodeIt->id);
                 }
             }
         }
     };
 
+    auto startNodeIt = std::find_if(nodes.begin(), nodes.end(), [](const Node &node)
+                                    { return node.type == "kernel_start"; });
+
+    if (startNodeIt == nodes.end())
+    {
+        std::cout << "kernel_start not found\n";
+        return;
+    }
+
     writeInstructions(startNodeIt->id);
 
     outFile.close();
-    std::cout << "Nodes enregistrés dans 'kernel.asm'\n";
+    std::cout << "Code saved!\n";
 }
 
 int main()
@@ -145,7 +152,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    GLFWwindow *window = glfwCreateWindow(1280, 720, "No-code Kernel Creator", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(1280, 720, "TKit", NULL, NULL);
     if (window == NULL)
         return 1;
     glfwMakeContextCurrent(window);
@@ -173,9 +180,9 @@ int main()
 
         if (ImGui::BeginMainMenuBar())
         {
-            if (ImGui::BeginMenu("Fichier"))
+            if (ImGui::BeginMenu("File"))
             {
-                if (ImGui::MenuItem("Enregistrer"))
+                if (ImGui::MenuItem("Save"))
                 {
                     SaveNodesToAssembler();
                 }
@@ -188,15 +195,15 @@ int main()
 
         if (ImGui::BeginPopupContextWindow())
         {
-            if (ImGui::MenuItem("Ajouter kernel_start"))
+            if (ImGui::MenuItem("Add kernel_start"))
             {
                 nodes.push_back({static_cast<int>(nodes.size()), "kernel_start"});
             }
-            if (ImGui::MenuItem("Ajouter kernel_end"))
+            if (ImGui::MenuItem("Add kernel_end"))
             {
                 nodes.push_back({static_cast<int>(nodes.size()), "kernel_end"});
             }
-            if (ImGui::MenuItem("Ajouter print_char"))
+            if (ImGui::MenuItem("Add print_char"))
             {
                 Node new_node;
                 new_node.id = static_cast<int>(nodes.size());
@@ -239,12 +246,12 @@ int main()
                 ImGui::Text("Output");
                 ImNodes::EndOutputAttribute();
 
-                ImGui::InputText("letter", node_it->letter, 2);
+                ImGui::InputText("Letter", node_it->letter, 2);
             }
 
             if (ImGui::BeginPopupContextItem("NodeContext"))
             {
-                if (ImGui::MenuItem("Supprimer"))
+                if (ImGui::MenuItem("Deleter"))
                 {
                     node_it = nodes.erase(node_it);
                     continue;

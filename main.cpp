@@ -24,6 +24,7 @@ struct Node
     int id;
     std::string type;
     char letter[2];
+    char instruction[256];
 };
 
 std::vector<Node> nodes;
@@ -59,8 +60,7 @@ bool KernelPathIsValid()
                     {
                         return true;
                     }
-
-                    if (nodeIt->type == "print_char")
+                    else if (nodeIt->type == "print_char" || nodeIt->type == "instruction")
                     {
                         if (checkPath(nodeIt->id + 10000))
                         {
@@ -115,6 +115,11 @@ void SaveNodesToAssembler()
                         outFile << "mov al, '" << nodeIt->letter[0] << "'\n";
                         outFile << "int 0x10\n";
 
+                        writeInstructions(nodeIt->id + 10000);
+                    }
+                    if (nodeIt->type == "instruction")
+                    {
+                        outFile << nodeIt->instruction << "\n";
                         writeInstructions(nodeIt->id + 10000);
                     }
                     else if (nodeIt->type == "kernel_end")
@@ -226,6 +231,14 @@ int main()
                 new_node.letter[1] = '\0';
                 nodes.push_back(new_node);
             }
+            if (ImGui::MenuItem("Add instruction"))
+            {
+                Node new_node;
+                new_node.id = static_cast<int>(nodes.size());
+                new_node.type = "instruction";
+                std::fill(std::begin(new_node.instruction), std::end(new_node.instruction), 0);
+                nodes.push_back(new_node);
+            }
 
             ImGui::EndPopup();
         }
@@ -261,6 +274,18 @@ int main()
                 ImNodes::EndOutputAttribute();
 
                 ImGui::InputText("Letter", node_it->letter, 2);
+            }
+            else if (node_it->type == "instruction")
+            {
+                ImNodes::BeginInputAttribute(node_it->id);
+                ImGui::Text("Input");
+                ImNodes::EndInputAttribute();
+
+                ImNodes::BeginOutputAttribute(node_it->id + 10000);
+                ImGui::Text("Output");
+                ImNodes::EndOutputAttribute();
+
+                ImGui::InputText("Instruction", node_it->instruction, sizeof(node_it->instruction));
             }
 
             if (ImGui::BeginPopupContextItem("NodeContext"))
